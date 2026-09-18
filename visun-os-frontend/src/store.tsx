@@ -52,6 +52,16 @@ class LocalDemoRepository {
     catch { return 'Trình duyệt không cho lưu dữ liệu demo. Thay đổi chỉ còn đến khi tải lại trang.' }
   }
   reset(): DemoState { const next=makeSeed();this.save(next);return next }
+  clearAll(): DemoState {
+    const next: DemoState = {
+      version:3,customers:[],opportunities:[],projects:[],tasks:[],notes:[],inbox:[],events:[],
+      learning:[],knowledge:[],dataAssets:[],content:[],
+      users:[{id:'u1',name:'Anh Hùng',role:'owner',initials:'H'}],
+      approvals:[],settings:{reminderTime:'07:30',reminderWeekdays:true},
+    }
+    this.save(next)
+    return next
+  }
   export(state: DemoState): void {
     const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'})
     const url=URL.createObjectURL(blob)
@@ -68,6 +78,7 @@ type DemoContextValue = {
   update: <K extends Collection>(collection: K, id: string, patch: Partial<EntityMap[K]>) => void
   archive: (collection: Collection, id: string) => void
   reset: () => void
+  clearAll: () => void
   exportDemo: () => void
   setSettings: (patch: Partial<DemoState['settings']>) => void
   commitProposal: (proposal: AIProposal) => { ok: boolean; ids: string[]; message: string }
@@ -104,6 +115,7 @@ export function DemoProvider({children}:{children:ReactNode}) {
   }
   const archive: DemoContextValue['archive'] = (collection,id) => update(collection,id,{archived:true} as never)
   const reset=()=>{const next=demoRepository.reset();stateRef.current=next;setState(next);setStorageError('')}
+  const clearAll=()=>{const next=demoRepository.clearAll();stateRef.current=next;setState(next);setStorageError('')}
   const exportDemo=()=>demoRepository.export(stateRef.current)
   const setSettings=(patch:Partial<DemoState['settings']>)=>persist(current=>({...current,settings:{...current.settings,...patch}}))
   const convertInbox=(inboxId:string,kind:'task'|'note'|'opportunity'|'content',linkedId:string)=>{
@@ -148,7 +160,7 @@ export function DemoProvider({children}:{children:ReactNode}) {
     persist(previous=>({...previous,tasks,notes,inbox,approvals:[...previous.approvals,proposal.id]}))
     return {ok:true,ids,message:`Đã lưu ${ids.length} mục vào dữ liệu minh họa trên trình duyệt này.`}
   }
-  const value={state,storageError,add,update,archive,reset,exportDemo,setSettings,commitProposal,convertInbox,toggleTask}
+  const value={state,storageError,add,update,archive,reset,clearAll,exportDemo,setSettings,commitProposal,convertInbox,toggleTask}
   return <DemoContext.Provider value={value}>{children}</DemoContext.Provider>
 }
 export const useDemo=()=>{const context=useContext(DemoContext);if(!context)throw new Error('DemoProvider missing');return context}
