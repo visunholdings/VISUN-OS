@@ -17,3 +17,5 @@ visun-os-frontend/test-results/
 
 # Supabase CLI local state
 visun-os-backend/supabase/.temp/
+.vercel
+.env*
