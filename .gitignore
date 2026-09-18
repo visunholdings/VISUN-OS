@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Frontend build output
+visun-os-frontend/dist/
+visun-os-frontend/dist-ssr/
+visun-os-frontend/test-results/
+
+# Env files — không commit khóa/URL môi trường, kể cả khi giá trị không nhạy cảm
+*.env
+*.env.local
+.env*.local
+
+# Supabase CLI local state
+visun-os-backend/supabase/.temp/

@@ -1,0 +1,13 @@
+{
+  "name": "visun-os-backend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Schema, RLS và Edge Functions cho VISUN OS. Chưa kết nối Supabase thật; xem README.md.",
+  "type": "module",
+  "scripts": {
+    "test:schema": "node test/pglite-harness.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17"
+  }
+}
