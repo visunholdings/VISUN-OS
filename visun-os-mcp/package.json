@@ -1,0 +1,18 @@
+{
+  "name": "visun-os-mcp",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MCP server cho Claude — bọc lại đúng 5 thao tác đã có và đã kiểm thử trên visun-os-backend (ghi nhanh, chuyển thành việc, xem/hoàn thành công việc). Chạy local qua stdio, dùng phiên đăng nhập thật của người dùng, không dùng service_role key.",
+  "type": "module",
+  "bin": {
+    "visun-os-mcp": "./server.mjs"
+  },
+  "scripts": {
+    "login": "node login.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.2",
+    "@supabase/supabase-js": "^2.58.0",
+    "zod": "^3.25.76"
+  }
+}
