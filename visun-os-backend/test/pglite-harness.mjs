@@ -475,6 +475,41 @@ async function main() {
   const outsiderCalendarReadRes = await db.query(`select id from public.calendar_events where workspace_id = $1`, [workspaceId])
   check('Người ngoài workspace KHÔNG đọc được calendar_events (lỗi rò rỉ đã vá ở 0011)', outsiderCalendarReadRes.rows.length === 0)
 
+  // --- rpc_google_oauth_start: tạo state tạm cho luồng kết nối Google Calendar (mục 0012) ---
+  await asUser(db, owner)
+  const oauthStateRes = await db.query(`select public.rpc_google_oauth_start($1) as state`, [workspaceId])
+  const oauthState = oauthStateRes.rows[0].state
+  check('rpc_google_oauth_start trả về một state hợp lệ', !!oauthState)
+  await asAdmin(db)
+  const pendingRes = await db.query(`select workspace_id, user_id from public.oauth_pending_connections where state = $1`, [oauthState])
+  check('State được ghi đúng workspace/người dùng đang đăng nhập', pendingRes.rows[0]?.user_id === owner)
+
+  await asUser(db, viewer)
+  let viewerOauthStartBlocked = false
+  try {
+    await db.query(`select public.rpc_google_oauth_start($1) as state`, [workspaceId])
+  } catch { viewerOauthStartBlocked = true }
+  check('Viewer KHÔNG khởi tạo được kết nối Google Calendar (RLS chặn insert oauth_pending_connections)', viewerOauthStartBlocked)
+
+  await asAdmin(db)
+  let duplicateConnectionBlocked = false
+  try {
+    await db.query(
+      `insert into public.calendar_connections (workspace_id, user_id) values ($1,$2)`,
+      [workspaceId, owner]
+    )
+  } catch { duplicateConnectionBlocked = true }
+  check('Ràng buộc unique(workspace_id, user_id) chặn tạo 2 kết nối Google Calendar cho cùng 1 người', duplicateConnectionBlocked)
+
+  const upsertConnectionRes = await db.query(
+    `insert into public.calendar_connections (workspace_id, user_id, account_email, status)
+     values ($1,$2,'test@vidu.com','connected')
+     on conflict (workspace_id, user_id) do update set account_email = excluded.account_email, status = excluded.status
+     returning account_email`,
+    [workspaceId, owner]
+  )
+  check('Upsert theo (workspace_id, user_id) cập nhật đúng kết nối cũ thay vì lỗi', upsertConnectionRes.rows[0]?.account_email === 'test@vidu.com')
+
   // Quay lại một người dùng thật (owner) trước khi đọc dữ liệu — các câu lệnh trên cố tình bỏ auth.uid() để test forbidden.
   await asUser(db, owner)
 

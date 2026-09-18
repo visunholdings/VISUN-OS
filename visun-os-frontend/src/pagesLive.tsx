@@ -8,10 +8,33 @@ import { isBackendConfigured, supabase } from './data/supabaseClient'
 import {
   signInWithPassword, getSession, onAuthStateChange, getOrCreateMyWorkspace,
   listInboxItems, createInboxItem, convertInbox, listTasks, completeTask,
+  startGoogleCalendarConnect, getCalendarConnection, syncGoogleCalendar, listCalendarEvents,
+  type CalendarConnection, type CalendarEvent,
 } from './data/apiRepository'
 import type { ApiTask } from './data/types'
 import type { InboxItem } from './domain'
 import { taskStatusLabel } from './domain'
+
+function readCalendarRedirectNotice(): { tone: 'info' | 'error'; message: string } | null {
+  const params = new URLSearchParams(window.location.search)
+  const calendarStatus = params.get('calendar')
+  if (!calendarStatus) return null
+  window.history.replaceState(null, '', window.location.pathname)
+  if (calendarStatus === 'connected') return { tone: 'info', message: 'Đã kết nối Google Calendar thành công.' }
+  const reason = params.get('reason') ?? 'không rõ nguyên nhân'
+  return { tone: 'error', message: `Kết nối Google Calendar thất bại (${reason}). Hãy thử lại.` }
+}
+
+function formatEventTime(event: CalendarEvent): string {
+  if (event.allDay) return new Date(event.start).toLocaleDateString('vi-VN')
+  const start = new Date(event.start)
+  const end = new Date(event.end)
+  const sameDay = start.toDateString() === end.toDateString()
+  const dateStr = start.toLocaleDateString('vi-VN')
+  const startTime = start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  const endTime = end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  return sameDay ? `${dateStr} · ${startTime}–${endTime}` : `${dateStr} ${startTime} → ${end.toLocaleDateString('vi-VN')} ${endTime}`
+}
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message
@@ -36,8 +59,13 @@ export function LiveBackendPage() {
   const [quickNote, setQuickNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState<{ tone: 'info' | 'error'; message: string } | null>(null)
+  const [calendarConnection, setCalendarConnection] = useState<CalendarConnection | null>(null)
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([])
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
+    setNotice(readCalendarRedirectNotice())
     if (!isBackendConfigured) { setCheckingSession(false); return }
     getSession().then(session => { setUserId(session?.user.id ?? null); setCheckingSession(false) })
       .catch(err => { setError(errorMessage(err)); setCheckingSession(false) })
@@ -51,10 +79,14 @@ export function LiveBackendPage() {
       .then(async ({ workspaceId: ws }) => {
         if (cancelled) return
         setWorkspaceId(ws)
-        const [inboxItems, taskItems] = await Promise.all([listInboxItems(ws), listTasks(ws)])
+        const [inboxItems, taskItems, connection, events] = await Promise.all([
+          listInboxItems(ws), listTasks(ws), getCalendarConnection(ws), listCalendarEvents(ws),
+        ])
         if (cancelled) return
         setInbox(inboxItems)
         setTasks(taskItems)
+        setCalendarConnection(connection)
+        setCalendarEvents(events)
       })
       .catch(err => !cancelled && setError(errorMessage(err)))
     return () => { cancelled = true }
@@ -64,6 +96,37 @@ export function LiveBackendPage() {
     const [inboxItems, taskItems] = await Promise.all([listInboxItems(ws), listTasks(ws)])
     setInbox(inboxItems)
     setTasks(taskItems)
+  }
+
+  async function refreshCalendar(ws: string) {
+    const [connection, events] = await Promise.all([getCalendarConnection(ws), listCalendarEvents(ws)])
+    setCalendarConnection(connection)
+    setCalendarEvents(events)
+  }
+
+  async function handleConnectCalendar() {
+    if (!workspaceId) return
+    setBusy(true); setError('')
+    try {
+      const url = await startGoogleCalendarConnect(workspaceId)
+      window.location.href = url
+    } catch (err) {
+      setError(errorMessage(err))
+      setBusy(false)
+    }
+  }
+
+  async function handleSyncCalendar() {
+    if (!workspaceId) return
+    setSyncing(true); setError('')
+    try {
+      const result = await syncGoogleCalendar(workspaceId)
+      if (result.status !== 'success') { setError(result.message); return }
+      await refreshCalendar(workspaceId)
+      toast(`Đã đồng bộ ${result.synced} sự kiện từ Google Calendar.`)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally { setSyncing(false) }
   }
 
   async function handlePasswordLogin(event: FormEvent) {
@@ -167,6 +230,40 @@ export function LiveBackendPage() {
         action={<button className="text-button" onClick={handleSignOut}>Đăng xuất</button>}
       />
       {error && <Notice tone="error">{error}</Notice>}
+      {notice && <Notice tone={notice.tone}>{notice.message}</Notice>}
+
+      <Card title="Lịch (Google Calendar)">
+        {!calendarConnection ? (
+          <>
+            <p>Chưa kết nối. Chỉ đọc lịch, không sửa/xóa sự kiện trên Google.</p>
+            <button className="button primary" disabled={busy} onClick={handleConnectCalendar}>Kết nối Google Calendar</button>
+          </>
+        ) : (
+          <>
+            <div className="mini-form" style={{ justifyContent: 'space-between' }}>
+              <span>
+                Đã kết nối{calendarConnection.accountEmail ? `: ${calendarConnection.accountEmail}` : ''}
+                {' · '}
+                {calendarConnection.status === 'connected' ? 'Đang hoạt động' : calendarConnection.status === 'expired' ? 'Hết hạn, cần kết nối lại' : 'Đã thu hồi'}
+              </span>
+              <button className="button small outline" disabled={syncing} onClick={handleSyncCalendar}>{syncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}</button>
+            </div>
+            {calendarConnection.lastSyncedAt && <small>Lần đồng bộ gần nhất: {new Date(calendarConnection.lastSyncedAt).toLocaleString('vi-VN')}</small>}
+            {calendarConnection.status === 'expired' && (
+              <button className="button small primary" style={{ marginTop: 8 }} disabled={busy} onClick={handleConnectCalendar}>Kết nối lại</button>
+            )}
+            <div className="stack" style={{ marginTop: 12 }}>
+              {calendarEvents.length === 0 && <p>Chưa có sự kiện sắp tới (hoặc chưa đồng bộ lần nào).</p>}
+              {calendarEvents.map(event => (
+                <div className="mini-form" key={event.id} style={{ justifyContent: 'space-between' }}>
+                  <span>{event.title}</span>
+                  <small>{formatEventTime(event)}</small>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </Card>
 
       <Card title="Ghi nhanh">
         <form className="mini-form" onSubmit={handleQuickNote}>

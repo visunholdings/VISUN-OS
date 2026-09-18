@@ -12,6 +12,7 @@ import './styles.css'
 const navItems=[
   {to:'/',label:'Hôm nay',icon:Home,end:true},
   {to:'/inbox',label:'Hộp ghi nhanh',icon:Inbox},
+  {to:'/content',label:'Truyền thông & nội dung',icon:Megaphone},
   {to:'/tasks',label:'Công việc',icon:ClipboardList},
   {to:'/customers',label:'Khách hàng',icon:Users},
   {to:'/opportunities',label:'Cơ hội',icon:BriefcaseBusiness},
@@ -19,7 +20,6 @@ const navItems=[
   {to:'/learning',label:'Học & nghiên cứu',icon:BookOpen},
   {to:'/knowledge',label:'Kho kiến thức',icon:Lightbulb},
   {to:'/data',label:'Dữ liệu dự án',icon:Database},
-  {to:'/content',label:'Truyền thông & nội dung',icon:Megaphone},
   {to:'/calendar',label:'Lịch',icon:CalendarDays},
   {to:'/ai',label:'AI demo',icon:Bot},
 ]

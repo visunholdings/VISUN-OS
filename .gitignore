@@ -19,3 +19,6 @@ visun-os-frontend/test-results/
 visun-os-backend/supabase/.temp/
 .vercel
 .env*
+
+# Google OAuth client (chứa client_secret) — tải riêng từ Google Cloud Console, không commit
+visun-os-mcp/credentials.json

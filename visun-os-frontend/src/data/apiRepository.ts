@@ -205,3 +205,58 @@ export async function createProjectFromOpportunity(
   if (error) throw error
   return data as OperationResult<{ projectId: string }>
 }
+
+// ===== Google Calendar (chỉ đọc, BE4) =====
+export type CalendarConnection = {
+  id: string
+  accountEmail: string | null
+  status: 'connected' | 'expired' | 'revoked'
+  lastSyncedAt: string | null
+}
+
+export type CalendarEvent = {
+  id: string
+  title: string
+  start: string
+  end: string
+  allDay: boolean
+}
+
+// Gọi Edge Function google-oauth-start (khớp mục 0012 trong visun-os-backend) để lấy URL đồng ý của
+// Google; nơi gọi hàm này (pagesLive.tsx) tự điều hướng trình duyệt tới URL trả về.
+export async function startGoogleCalendarConnect(workspaceId: string): Promise<string> {
+  const { data, error } = await requireSupabase().functions.invoke('google-oauth-start', { body: { workspaceId } })
+  if (error) throw error
+  if (data?.status !== 'success') throw new Error(data?.message ?? 'Không tạo được liên kết kết nối Google.')
+  return data.url as string
+}
+
+export async function getCalendarConnection(workspaceId: string): Promise<CalendarConnection | null> {
+  const { data, error } = await requireSupabase()
+    .from('calendar_connections')
+    .select('id, account_email, status, last_synced_at')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  return { id: data.id, accountEmail: data.account_email, status: data.status, lastSyncedAt: data.last_synced_at }
+}
+
+export async function syncGoogleCalendar(workspaceId: string): Promise<OperationResult<{ synced: number }>> {
+  const { data, error } = await requireSupabase().functions.invoke('google-calendar-sync', { body: { workspaceId } })
+  if (error) throw error
+  return data as OperationResult<{ synced: number }>
+}
+
+export async function listCalendarEvents(workspaceId: string): Promise<CalendarEvent[]> {
+  const { data, error } = await requireSupabase()
+    .from('calendar_events')
+    .select('id, title, start, end, all_day')
+    .eq('workspace_id', workspaceId)
+    .eq('cancelled', false)
+    .gte('start', new Date().toISOString())
+    .order('start', { ascending: true })
+    .limit(10)
+  if (error) throw error
+  return (data ?? []).map((row) => ({ id: row.id, title: row.title, start: row.start, end: row.end, allDay: row.all_day }))
+}

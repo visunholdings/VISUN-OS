@@ -9,6 +9,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
 import { createAuthenticatedClient } from './lib/session.mjs'
+import { getAuthenticatedClient } from './lib/google_auth.mjs'
+import { google } from 'googleapis'
 
 const supabase = await createAuthenticatedClient()
 if (!supabase) {
@@ -148,6 +150,187 @@ server.registerTool(
     })
     if (error) return errorResult(error.message)
     return textResult(data)
+  }
+)
+
+server.registerTool(
+  'gmail_list_emails',
+  {
+    description: 'Lấy danh sách các email mới/chưa đọc từ Gmail.',
+    inputSchema: {
+      maxResults: z.number().optional().describe('Số lượng email tối đa cần lấy. Mặc định 10.'),
+      query: z.string().optional().describe('Câu truy vấn tìm kiếm Gmail, ví dụ: "is:unread". Mặc định "is:unread".'),
+    },
+  },
+  async ({ maxResults = 10, query = 'is:unread' }) => {
+    try {
+      const auth = await getAuthenticatedClient()
+      const gmail = google.gmail({ version: 'v1', auth })
+      const res = await gmail.users.messages.list({
+        userId: 'me',
+        maxResults,
+        q: query,
+      })
+      
+      const messages = res.data.messages || []
+      if (messages.length === 0) {
+        return textResult('Không có email nào phù hợp.')
+      }
+
+      const emailDetails = await Promise.all(
+        messages.map(async (msg) => {
+          const msgData = await gmail.users.messages.get({
+            userId: 'me',
+            id: msg.id,
+            format: 'metadata',
+            metadataHeaders: ['From', 'Subject', 'Date'],
+          })
+          const headers = msgData.data.payload.headers
+          const getHeader = (name) => headers.find(h => h.name === name)?.value || ''
+          return {
+            id: msg.id,
+            snippet: msgData.data.snippet,
+            from: getHeader('From'),
+            subject: getHeader('Subject'),
+            date: getHeader('Date'),
+          }
+        })
+      )
+      return textResult(emailDetails)
+    } catch (error) {
+      return errorResult(error.message)
+    }
+  }
+)
+
+server.registerTool(
+  'gmail_send_email',
+  {
+    description: 'Gửi email qua Gmail.',
+    inputSchema: {
+      to: z.string().email(),
+      subject: z.string().min(1),
+      body: z.string().min(1),
+    },
+  },
+  async ({ to, subject, body }) => {
+    try {
+      const auth = await getAuthenticatedClient()
+      const gmail = google.gmail({ version: 'v1', auth })
+      
+      const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`
+      const messageParts = [
+        `To: ${to}`,
+        'Content-Type: text/html; charset=utf-8',
+        'MIME-Version: 1.0',
+        `Subject: ${utf8Subject}`,
+        '',
+        body,
+      ]
+      const message = messageParts.join('\n')
+      
+      const encodedMessage = Buffer.from(message)
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '')
+
+      const res = await gmail.users.messages.send({
+        userId: 'me',
+        requestBody: {
+          raw: encodedMessage,
+        },
+      })
+      
+      return textResult(res.data)
+    } catch (error) {
+      return errorResult(error.message)
+    }
+  }
+)
+
+server.registerTool(
+  'google_calendar_list_events',
+  {
+    description: 'Lấy danh sách các sự kiện sắp tới từ Google Calendar.',
+    inputSchema: {
+      maxResults: z.number().optional().describe('Số lượng sự kiện tối đa cần lấy. Mặc định 10.'),
+      timeMin: z.string().optional().describe('Thời gian bắt đầu lấy sự kiện (ISO 8601). Mặc định là hiện tại.'),
+    },
+  },
+  async ({ maxResults = 10, timeMin = new Date().toISOString() }) => {
+    try {
+      const auth = await getAuthenticatedClient()
+      const calendar = google.calendar({ version: 'v3', auth })
+      
+      const res = await calendar.events.list({
+        calendarId: 'primary',
+        timeMin: timeMin,
+        maxResults: maxResults,
+        singleEvents: true,
+        orderBy: 'startTime',
+      })
+      
+      const events = res.data.items || []
+      if (events.length === 0) {
+        return textResult('Không có sự kiện nào sắp tới.')
+      }
+
+      const eventDetails = events.map(event => {
+        const start = event.start.dateTime || event.start.date
+        const end = event.end.dateTime || event.end.date
+        return {
+          id: event.id,
+          summary: event.summary,
+          description: event.description || '',
+          start,
+          end,
+          htmlLink: event.htmlLink,
+        }
+      })
+      return textResult(eventDetails)
+    } catch (error) {
+      return errorResult(error.message)
+    }
+  }
+)
+
+server.registerTool(
+  'google_calendar_create_event',
+  {
+    description: 'Tạo một sự kiện mới trên Google Calendar.',
+    inputSchema: {
+      summary: z.string().min(1).describe('Tiêu đề sự kiện'),
+      description: z.string().optional().describe('Mô tả sự kiện'),
+      startDateTime: z.string().describe('Thời gian bắt đầu (ISO 8601, VD: 2026-09-20T10:00:00+07:00)'),
+      endDateTime: z.string().describe('Thời gian kết thúc (ISO 8601, VD: 2026-09-20T11:00:00+07:00)'),
+    },
+  },
+  async ({ summary, description, startDateTime, endDateTime }) => {
+    try {
+      const auth = await getAuthenticatedClient()
+      const calendar = google.calendar({ version: 'v3', auth })
+      
+      const event = {
+        summary,
+        description,
+        start: { dateTime: startDateTime },
+        end: { dateTime: endDateTime },
+      }
+      
+      const res = await calendar.events.insert({
+        calendarId: 'primary',
+        requestBody: event,
+      })
+      
+      return textResult({
+        id: res.data.id,
+        htmlLink: res.data.htmlLink,
+        summary: res.data.summary,
+      })
+    } catch (error) {
+      return errorResult(error.message)
+    }
   }
 )
 
