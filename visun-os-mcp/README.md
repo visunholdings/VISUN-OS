@@ -6,17 +6,7 @@ Bọc lại đúng 5 thao tác đã có và đã kiểm thử trên `visun-os-ba
 
 ## Cài đặt lần đầu
 
-### 1. Cho phép link đăng nhập quay về máy này
-
-Vào Supabase Dashboard của project → **Authentication → URL Configuration → Redirect URLs** → thêm:
-
-```
-http://localhost:51739
-```
-
-(Đây là cổng cố định `login.mjs` dùng để nhận lại link đăng nhập, khai báo ở `lib/config.mjs`.)
-
-### 2. Đăng nhập một lần
+### 1. Đăng nhập một lần (email + mật khẩu)
 
 ```bash
 cd "/Users/hungtrinh/Desktop/VISUN OS/visun-os-mcp"
@@ -24,15 +14,15 @@ npm install
 node login.mjs ban@vidu.com
 ```
 
-Mở email vừa nhận, bấm vào link đăng nhập **đúng một lần, càng sớm càng tốt** (giống hệt lưu ý ở trang `/live` — một số phần mềm quét email có thể làm link hết hạn trước khi anh bấm; nếu vậy chạy lại lệnh trên). Đăng nhập xong, phiên được lưu tại `~/.visun-os-mcp/session.json` (chỉ máy này đọc được).
+Gõ mật khẩu khi được hỏi (mật khẩu này dùng chung với trang `/live`). Đăng nhập xong, phiên được lưu tại `~/.visun-os-mcp/session.json` (chỉ máy này đọc được, quyền tệp 600).
 
 **Yêu cầu:** tài khoản đăng nhập phải đã từng mở trang `/live` ít nhất một lần trước đó (để workspace được tạo qua `create_workspace()`); MCP server chỉ đọc workspace có sẵn, không tự tạo mới.
 
-### 3. Khởi động lại Claude Desktop
+### 2. Khởi động lại Claude Desktop
 
 File cấu hình `~/Library/Application Support/Claude/claude_desktop_config.json` đã được thêm mục `mcpServers.visun-os` trỏ tới `server.mjs`. Thoát hẳn Claude Desktop (Cmd+Q) rồi mở lại để nó nạp server mới.
 
-### 4. Thử
+### 3. Thử
 
 Hỏi Claude, ví dụ:
 - "Trong VISUN OS, việc nào của tôi đang chưa hoàn thành?"

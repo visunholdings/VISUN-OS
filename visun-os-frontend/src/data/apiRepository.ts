@@ -11,9 +11,10 @@ export type OperationResult<T> =
   | { status: 'validation_error' | 'forbidden' | 'conflict' | 'retryable_error'; message: string }
 
 // ===== Phiên đăng nhập =====
-// Dùng email OTP (magic link/mã gửi qua email) vì bản chạy đầu chỉ một người dùng, không cần hạ tầng mật khẩu.
-export async function signInWithEmail(email: string, redirectTo?: string) {
-  const { error } = await requireSupabase().auth.signInWithOtp({ email, options: redirectTo ? { emailRedirectTo: redirectTo } : undefined })
+// Email + mật khẩu (không dùng magic link nữa: tránh lỗi link hết hạn do phần mềm quét email tự mở hộ,
+// và không có màn hình đăng ký ở đây -> chỉ tài khoản đã được đặt mật khẩu từ trước mới vào được).
+export async function signInWithPassword(email: string, password: string) {
+  const { error } = await requireSupabase().auth.signInWithPassword({ email, password })
   if (error) throw error
 }
 

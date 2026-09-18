@@ -17,7 +17,7 @@ kiểm thử trực tiếp trên trình duyệt. Vì vậy phần này dừng �
 
 - `supabaseClient.ts`: khởi tạo client từ `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` (xem `.env.example` ở gốc dự án); nếu để trống thì `isBackendConfigured === false`, app không bị ảnh hưởng.
 - `types.ts`: kiểu dòng dữ liệu Postgres (snake_case) và hàm chuyển sang kiểu `Task`/`InboxItem` trong `src/domain.ts` — đây là điểm khớp trực tiếp giữa cột backend và field frontend.
-- `apiRepository.ts`: đăng nhập bằng email OTP, lấy/khởi tạo workspace, `listInboxItems`/`createInboxItem`/`convertInbox` (gọi `rpc_inbox_convert`), `listTasks`/`createTask`/`updateTask` (cập nhật lạc quan theo `revision`)/`completeTask` (gọi `rpc_task_complete`), `createProjectFromOpportunity` (gọi `rpc_opportunity_create_project`).
+- `apiRepository.ts`: đăng nhập bằng email + mật khẩu, lấy/khởi tạo workspace, `listInboxItems`/`createInboxItem`/`convertInbox` (gọi `rpc_inbox_convert`), `listTasks`/`createTask`/`updateTask` (cập nhật lạc quan theo `revision`)/`completeTask` (gọi `rpc_task_complete`), `createProjectFromOpportunity` (gọi `rpc_opportunity_create_project`).
 
 ## Bước tiếp theo để thật sự dùng được (BE1)
 

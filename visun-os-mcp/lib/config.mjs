@@ -4,7 +4,3 @@
 export const SUPABASE_URL = process.env.SUPABASE_URL || 'https://jwbqildqygofpsfkgavw.supabase.co'
 export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3YnFpbGRxeWdvZnBzZmtnYXZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3Mjg3OTksImV4cCI6MjEwNTMwNDc5OX0.8fCZtMeapxdlwuoPfaHGGzrfMnPNiHBFe0u2fxDU2SY'
-
-// Cổng local dùng để nhận link đăng nhập quay về khi chạy login.mjs — phải khớp với URL được thêm vào
-// Supabase Dashboard → Authentication → URL Configuration → Redirect URLs (xem README.md).
-export const LOGIN_CALLBACK_PORT = 51739

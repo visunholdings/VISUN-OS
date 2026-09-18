@@ -6,7 +6,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Card, Field, Notice, PageHeading, useToast } from './ui'
 import { isBackendConfigured, supabase } from './data/supabaseClient'
 import {
-  signInWithEmail, getSession, onAuthStateChange, getOrCreateMyWorkspace,
+  signInWithPassword, getSession, onAuthStateChange, getOrCreateMyWorkspace,
   listInboxItems, createInboxItem, convertInbox, listTasks, completeTask,
 } from './data/apiRepository'
 import type { ApiTask } from './data/types'
@@ -24,26 +24,12 @@ function errorMessage(err: unknown): string {
   return String(err)
 }
 
-// Supabase chuyển hướng về đây kèm "#error=...&error_code=otp_expired..." khi link đăng nhập đã hết hạn
-// hoặc đã được dùng trước đó (thường do phần mềm quét email tự động mở link hộ trước khi người dùng bấm).
-function readAuthHashError(): string {
-  const hash = window.location.hash
-  if (!hash.includes('error=')) return ''
-  const params = new URLSearchParams(hash.replace(/^#/, ''))
-  const code = params.get('error_code')
-  window.history.replaceState(null, '', window.location.pathname + window.location.search)
-  if (code === 'otp_expired') {
-    return 'Link đăng nhập đã hết hạn hoặc đã được dùng trước đó — thường do phần mềm quét email tự động mở link hộ. Hãy gửi lại và bấm link càng sớm càng tốt, chỉ bấm đúng một lần.'
-  }
-  return params.get('error_description')?.replace(/\+/g, ' ') || 'Đăng nhập thất bại, hãy thử gửi lại link.'
-}
-
 export function LiveBackendPage() {
   const toast = useToast()
   const [userId, setUserId] = useState<string | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
   const [email, setEmail] = useState('')
-  const [otpSent, setOtpSent] = useState(false)
+  const [password, setPassword] = useState('')
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [inbox, setInbox] = useState<InboxItem[]>([])
   const [tasks, setTasks] = useState<ApiTask[]>([])
@@ -52,8 +38,6 @@ export function LiveBackendPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const hashError = readAuthHashError()
-    if (hashError) setError(hashError)
     if (!isBackendConfigured) { setCheckingSession(false); return }
     getSession().then(session => { setUserId(session?.user.id ?? null); setCheckingSession(false) })
       .catch(err => { setError(errorMessage(err)); setCheckingSession(false) })
@@ -82,13 +66,13 @@ export function LiveBackendPage() {
     setTasks(taskItems)
   }
 
-  async function handleSendOtp(event: FormEvent) {
+  async function handlePasswordLogin(event: FormEvent) {
     event.preventDefault()
-    if (!email.trim()) return
+    if (!email.trim() || !password) return
     setBusy(true); setError('')
     try {
-      await signInWithEmail(email.trim(), `${window.location.origin}/live`)
-      setOtpSent(true)
+      await signInWithPassword(email.trim(), password)
+      setPassword('')
     } catch (err) {
       setError(errorMessage(err))
     } finally { setBusy(false) }
@@ -97,7 +81,6 @@ export function LiveBackendPage() {
   async function handleSignOut() {
     await supabase?.auth.signOut()
     setUserId(null)
-    setOtpSent(false)
   }
 
   async function handleQuickNote(event: FormEvent) {
@@ -162,16 +145,13 @@ export function LiveBackendPage() {
   if (!userId) {
     return (
       <div className="page">
-        <PageHeading eyebrow="Kết nối thật · Supabase" title="Đăng nhập" description="Dùng email để nhận link đăng nhập một lần." />
+        <PageHeading eyebrow="Kết nối thật · Supabase" title="Đăng nhập" description="Đăng nhập bằng email và mật khẩu quản trị." />
         <Card>
-          {otpSent ? (
-            <Notice tone="info">Đã gửi email tới <strong>{email}</strong>. Mở email và bấm vào link để quay lại đây đã đăng nhập.</Notice>
-          ) : (
-            <form className="mini-form" onSubmit={handleSendOtp}>
-              <Field label="Email"><input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="ban@vidu.com" /></Field>
-              <button className="button primary" type="submit" disabled={busy}>Gửi link đăng nhập</button>
-            </form>
-          )}
+          <form className="mini-form" onSubmit={handlePasswordLogin}>
+            <Field label="Email"><input type="email" required autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} placeholder="ban@vidu.com" /></Field>
+            <Field label="Mật khẩu"><input type="password" required autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /></Field>
+            <button className="button primary" type="submit" disabled={busy}>Đăng nhập</button>
+          </form>
           {error && <Notice tone="error">{error}</Notice>}
         </Card>
       </div>
